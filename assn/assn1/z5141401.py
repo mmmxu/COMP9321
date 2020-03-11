@@ -159,6 +159,19 @@ def question_8(df7):
 
     #################################################
     # Your code goes here ...
+    df8 = df7.copy()
+    for i, row in df8.iterrows():
+        cast_data = row['cast']
+        cast_lst = ast.literal_eval(cast_data)
+        total_cast_lst = []
+        for j in cast_lst:
+            # convert to dict
+            single_cast_dict = ast.literal_eval(str(j))
+            total_cast_lst.append(single_cast_dict['character'])
+        # sort by character
+        total_cast_lst = sorted(total_cast_lst)
+        total_cast_str = ','.join([str(elem) for elem in total_cast_lst]) 
+        df8['cast'][i] = total_cast_str
     #################################################
 
     log("QUESTION 8", output_df=df8, other=df8["cast"].head(10).values)
