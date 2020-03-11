@@ -188,6 +188,21 @@ def question_9(df8):
 
     #################################################
     # Your code goes here ...
+    # QUESTION do we need to keep (uncredited)?
+    df9 = df8[['title', 'cast']]
+    cast_count_dict = {}
+    for idx, row in df9.iterrows():
+        cast_lst = (row['cast']).split(",")
+        # remove dumplicate
+        cast_lst = list(dict.fromkeys(cast_lst))
+        cast_num = len(cast_lst)
+        cast_count_dict[idx] = cast_num
+
+    top10_film_id = [key for key in sorted(cast_count_dict, key=cast_count_dict.get, reverse=True)[:10]]
+    top_10_film_lst = []
+
+    for f_id in top10_film_id:
+        top_10_film_lst.append(df9['title'][f_id])
     #################################################
 
     log("QUESTION 9", output_df=None, other=movies)
@@ -204,6 +219,10 @@ def question_10(df8):
 
     #################################################
     # Your code goes here ...
+    # QUESTION! can we convert to datetime type
+    df10 = df8.copy()
+    df10['release_date']=pd.to_datetime(df10.release_date)
+    df10 = df10.sort_values(by='release_date', ascending=False)
     #################################################
 
     log("QUESTION 10", output_df=df10, other=df10["release_date"].head(5).to_string().replace("\n", " "))
