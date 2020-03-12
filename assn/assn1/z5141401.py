@@ -188,13 +188,13 @@ def question_9(df8):
 
     #################################################
     # Your code goes here ...
-    # QUESTION do we need to keep (uncredited)? remove dumplicated
+    # QUESTION do we need to keep (uncredited)? remove dumplicated? NOT remove dumplicated
     df9 = df8[['title', 'cast']]
     cast_count_dict = {}
     for idx, row in df9.iterrows():
         cast_lst = (row['cast']).split(",")
-        # remove dumplicate
-        cast_lst = list(dict.fromkeys(cast_lst))
+        # # remove dumplicate
+        # cast_lst = list(dict.fromkeys(cast_lst))
         cast_num = len(cast_lst)
         cast_count_dict[idx] = cast_num
 
@@ -203,6 +203,7 @@ def question_9(df8):
 
     for f_id in top10_film_id:
         top_10_film_lst.append(df9['title'][f_id])
+    movies = top_10_film_lst
     #################################################
 
     log("QUESTION 9", output_df=None, other=movies)
@@ -274,6 +275,7 @@ def question_11(df10):
 
     # convert to dataframe and plot out        
     pd_out = pd.DataFrame(genre_dict.items(), columns=['genre','count'])
+    plt.figure(num=None, figsize=(15, 15), dpi=80, facecolor='w', edgecolor='k')
     plt.pie(pd_out['count'], labels=pd_out['genre'], startangle=90,autopct='%1.1f%%',)
     #################################################
 
@@ -342,6 +344,7 @@ def question_13(df10):
 
     groups = df13_1.groupby('original_language')
     # Plot
+    plt.figure(num=None, figsize=(15, 15), dpi=80, facecolor='w', edgecolor='k')
     fig, ax = plt.subplots()
     ax.margins(0.05) # Optional, just adds 5% padding to the autoscaling
     for name, group in groups:
