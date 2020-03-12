@@ -237,6 +237,43 @@ def question_11(df10):
 
     #################################################
     # Your code goes here ...
+    # % display? text overlapping?
+    df11=df10.copy()
+    for i, row in df11.iterrows():
+        genre_data = row['genres']
+        genre_lst = ast.literal_eval(genre_data)
+        total_genre_lst = []
+        for j in genre_lst:
+            # convert to dict
+            single_genre_dict = ast.literal_eval(str(j))
+            total_genre_lst.append(single_genre_dict['name'])
+        # sort by character
+        total_genre_lst = sorted(total_genre_lst)
+        df11['genres'][i] = total_genre_lst
+
+    ## calc
+    film_num = 0
+    genre_dict = {}
+    for i, row in df11.iterrows():
+        genre_lst = row['genres']
+        film_num += len(genre_lst)
+        for g in genre_lst:
+            if not g in genre_dict:
+                genre_dict[g] = 1
+            else:
+                genre_dict[g] += 1
+    
+    # combine least 4 values
+    least_4_vals = 0
+    for _ in range(4):
+        min_key = min(genre_dict.keys(), key= lambda x:genre_dict[x])
+        least_4_vals += genre_dict[min_key]
+        del genre_dict[min_key]
+    genre_dict['Others'] = least_4_vals
+
+    # convert to dataframe and plot out        
+    pd_out = pd.DataFrame(genre_dict.items(), columns=['genre','count'])
+    plt.pie(pd_out['count'], labels=pd_out['genre'], startangle=90,autopct='%1.1f%%',)
     #################################################
 
     plt.savefig("{}-Q11.png".format(studentid))
@@ -250,6 +287,37 @@ def question_12(df10):
 
     #################################################
     # Your code goes here ...
+    df12=df10.copy()
+    for i, row in df12.iterrows():
+        p_cty_data = row['production_countries']
+        p_cty_lst = ast.literal_eval(p_cty_data)
+        total_cty_lst = []
+        for j in p_cty_lst:
+            # convert to dict
+            single_cty_dict = ast.literal_eval(str(j))
+            total_cty_lst.append(single_cty_dict['name'])
+        # sort by character
+        total_cty_lst = sorted(total_cty_lst)
+        df12['production_countries'][i] = total_cty_lst
+
+
+    ## calc
+    cty_num = 0
+    cty_dict = {}
+    for i, row in df12.iterrows():
+        cty_lst = row['production_countries']
+        cty_num += len(cty_lst)
+        for g in cty_lst:
+            if not g in cty_dict:
+                cty_dict[g] = 1
+            else:
+                cty_dict[g] += 1
+    # sort by value
+    cty_dict_sorted = {k: v for k, v in sorted(cty_dict.items(), key=lambda i: i[1])}
+
+    # # convert to dataframe and plot out        
+    pd_out = pd.DataFrame(cty_dict_sorted.items(), columns=['cty','count'])
+    pd_out.plot.bar(x='cty', y='count')
     #################################################
 
     plt.savefig("{}-Q12.png".format(studentid))
