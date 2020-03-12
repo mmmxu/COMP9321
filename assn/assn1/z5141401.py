@@ -188,7 +188,7 @@ def question_9(df8):
 
     #################################################
     # Your code goes here ...
-    # QUESTION do we need to keep (uncredited)?
+    # QUESTION do we need to keep (uncredited)? remove dumplicated
     df9 = df8[['title', 'cast']]
     cast_count_dict = {}
     for idx, row in df9.iterrows():
@@ -237,7 +237,8 @@ def question_11(df10):
 
     #################################################
     # Your code goes here ...
-    # % display? text overlapping?
+    # % QUESTION display? text overlapping?
+    # QUESTION how to test plt not poped up?
     df11=df10.copy()
     for i, row in df11.iterrows():
         genre_data = row['genres']
@@ -287,6 +288,8 @@ def question_12(df10):
 
     #################################################
     # Your code goes here ...
+
+    # Q12
     df12=df10.copy()
     for i, row in df12.iterrows():
         p_cty_data = row['production_countries']
@@ -313,11 +316,14 @@ def question_12(df10):
             else:
                 cty_dict[g] += 1
     # sort by value
-    cty_dict_sorted = {k: v for k, v in sorted(cty_dict.items(), key=lambda i: i[1])}
+    cty_dict_sorted = {k: v for k, v in sorted(cty_dict.items(), key=lambda i: i[0].lower())}
 
     # # convert to dataframe and plot out        
     pd_out = pd.DataFrame(cty_dict_sorted.items(), columns=['cty','count'])
-    pd_out.plot.bar(x='cty', y='count')
+
+    ax = pd_out.plot.bar(x='cty', y='count')
+    for p in ax.patches:
+        ax.annotate(str(p.get_height()), xy=(p.get_x(), p.get_height()))
     #################################################
 
     plt.savefig("{}-Q12.png".format(studentid))
@@ -331,6 +337,16 @@ def question_13(df10):
 
     #################################################
     # Your code goes here ...
+    df13 = df10.copy()
+    df13_1 = df13[['original_language', 'vote_average','success_impact']]
+
+    groups = df13_1.groupby('original_language')
+    # Plot
+    fig, ax = plt.subplots()
+    ax.margins(0.05) # Optional, just adds 5% padding to the autoscaling
+    for name, group in groups:
+        ax.plot(group.vote_average, group.success_impact, marker='o', linestyle='', ms=5, label=name)
+    ax.legend()
     #################################################
 
     plt.savefig("{}-Q13.png".format(studentid))
