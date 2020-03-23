@@ -1,7 +1,9 @@
-from flask import Flask
+from flask import Flask, request
 from flask_restplus import Resource, Api
+import json
 import requests
 import requests_cache
+import pandas as pd
 
 app = Flask(__name__)
 api = Api(app)
@@ -30,15 +32,21 @@ class hello_world(Resource):
 
 @app.route('/collections', methods=['POST'])
 def import_collection():
-    indicator_id = requests.args.get('indicator_id')
-    print("got here")
-    req_url = ENDPOINT + str(indicator_id) + ENDPOINT_POSTFIX
-    resp = requests.get(req_url)
-    if resp.status_code != 200:
-        # did not get the data
-        raise APIError(resp.status_code)
-    else:
-        pass
+    if request.method == 'POST':
+        # import data to db
+        indicator_id = request.args.get('indicator_id')
+
+        req_url = ENDPOINT + str(indicator_id) + ENDPOINT_POSTFIX
+        resp = requests.get(req_url)
+        if resp.status_code != 200:
+            # did not get the data
+            raise APIError(resp.status_code)
+        else:
+            resp_json = resp.json()
+            df = pd.DataFrame(resp_json)
+
+            return df
+            pass
 
 if __name__ == '__main__':
     app.run(debug=True)
