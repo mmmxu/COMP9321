@@ -22,8 +22,7 @@ from flask_restplus import Resource, Api
 from flask_restplus import fields
 from flask_restplus import inputs
 from flask_restplus import reqparse
-#from pymongo import *
-import sqlite3
+from pymongo import *
 import datetime
 
 # use flask_RESTplus establish an api
@@ -55,7 +54,7 @@ class datalist(Resource):
     @api.response(201, 'Create')
     @api.response(200, 'OK')
     @api.doc(description="Import a collection from the data service")
-    @api.expect(indicator_id, validate=True)   
+    @api.expect(indicator_id, validate=True)
     def post(self):
     ###### make a requst with indicator given by client ######
         # indicator id, given by user
@@ -80,7 +79,7 @@ class datalist(Resource):
             date = i['date']
             value = i['value']
             convert_data = {"country": country,
-                             "date": date, 
+                             "date": date,
                              "value": value
                              }
             #a = json.dumps(convert_data)
@@ -95,15 +94,15 @@ class datalist(Resource):
             'entries': entries
             }
     ###### insert the document into mlab ######
-        posts = db.posts        
+        posts = db.posts
         try:
             posts.insert_one(post)
         except:
             return {"message" : "{} has already been posted".format(indicator_id),
                     "location" : "/posts/{}".format(indicator_id)}, 200
-        return { 
-            "location" : "/posts/{}".format(indicator_id), 
-            "collection_id" : indicator_id,  
+        return {
+            "location" : "/posts/{}".format(indicator_id),
+            "collection_id" : indicator_id,
             "creation_time": date_str,
             "indicator" : indicator_id
             }, 201
@@ -114,15 +113,15 @@ class datalist(Resource):
     @api.doc(description="Retrieve the list of available collections")
     def get(self):
         availiable_collections = []
-        for item in db.posts.find():      
-            c_id = item['_id'] 
+        for item in db.posts.find():
+            c_id = item['_id']
             time = item['creation_time']
-            availiable_collection = { 
-                "location" : "/posts/{}".format(c_id), 
-                "collection_id" : c_id,  
+            availiable_collection = {
+                "location" : "/posts/{}".format(c_id),
+                "collection_id" : c_id,
                 "creation_time": time,
                 "indicator" : c_id
-                }  
+                }
             availiable_collections.append(availiable_collection)
         return availiable_collections, 200
 
@@ -143,10 +142,10 @@ class data(Resource):
             api.abort(404, "Indicator id {} doesn't exist".format(collection_id))
         for country_data in collection["entries"]:
             if (country_data["country"] == country) & (country_data["date"] == year):
-                return { 
+                return {
                    "collection_id": collection_id,
                    "indicator" : collection_id,
-                   "country": country, 
+                   "country": country,
                    "year": year,
                    "value": country_data["value"]
                 }, 200
@@ -167,10 +166,10 @@ class data(Resource):
         delete_id = db.posts.delete_one({"_id": collection_id})
         print("***** delete {} *****".format(collection_id))
         if delete_id.deleted_count:
-            return { 
+            return {
                 "message" :"Collection = {} is removed from the database!".format(collection_id)
                 }, 200
-        # deleted_count = 0, unexisting id 
+        # deleted_count = 0, unexisting id
         api.abort(404, "collection: {} doesn't exist".format(collection_id))
 ##############################
 #   question 4
@@ -250,28 +249,28 @@ class data(Resource):
         i = 0
         for i in range(count):
             if sorted_dict[i][1] == -1:
-                new_entries.append({ 
-                     "country": sorted_dict[i][0], 
+                new_entries.append({
+                     "country": sorted_dict[i][0],
                      "date": year,
                      "value": None
                 })
             else:
-                new_entries.append({ 
-                     "country": sorted_dict[i][0], 
+                new_entries.append({
+                     "country": sorted_dict[i][0],
                      "date": year,
                      "value": sorted_dict[i][1]
                 })
             i = 1 + i
-        return { 
+        return {
            "indicator": collection_id,
            "indicator_value": "GDP (current US$)",
-           "entries" : new_entries 
+           "entries" : new_entries
             }, 200
 
 if __name__ == '__main__':
 
     #connect('mongoengine_test', host='mongodb://comp9321:comp9321@ds261332.mlab.com:61332/coralsdb')
-    client = MongoClient('mongodb://comp9321:comp9321@ds261332.mlab.com:61332/coralsdb')
+    client = MongoClient('mongodb://localhost:27017/coralsdb')
     db = client['coralsdb']
 
     # get the list of indicators
@@ -286,6 +285,5 @@ if __name__ == '__main__':
         list_of_indicator_id.add(i['id'])
     print("***** indicator id information has been update *****")
     app.run(debug=True)
-
 
 

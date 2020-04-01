@@ -30,6 +30,11 @@ df = pd.DataFrame()
 Z_ID = 'z5141401'
 ENDPOINT = 'http://api.worldbank.org/v2/countries/all/indicators/'
 ENDPOINT_POSTFIX = '?date=2012:2017&format=json&per_page=1000'
+
+INDICATOR_ENDPOINT = 'http://api.worldbank.org/v2/indicators?per_page=10000&format=json&page='
+
+# pages of indicator id in world bank webpage
+INDICATOR_PAGES = 2
 # database record id, starts from 1
 ENTRY_ID = 1
 
@@ -56,6 +61,26 @@ def fetch_data_by_id(indicator_id):
         # got data from world bank
         resp_json = resp.json()
     return resp_json
+
+def get_all_indicator_id(INDICATOR_PAGES):
+    """
+    :param INDICATOR_PAGES:
+    :return: all indicators got from world bank API
+    """
+    i = 1
+    indicator_lst = set()
+    while i<= INDICATOR_PAGES:
+        req_link = INDICATOR_ENDPOINT + str(i)
+        req = requests.get(req_link)
+        indicators = req.json()
+        for j in indicators[1]:
+            indicator_lst.add(j['id'])
+        i+=1
+    print("Total %d records of indicator id got."% len(indicator_lst))
+    return indicator_lst
+
+
+
 
 def process_data_by_id(resp_json, indicator_id):
     """
@@ -257,16 +282,8 @@ class Books(Resource):
 if __name__ == '__main__':
     table_name = 'collections'
     database_file = Z_ID + '.db'  # name of sqlite db file that will be created
-    # csv_file = "Books.csv"
-    # df = pd.read_csv(csv_file)
-    #
-    # # drop unnecessary columns
-    # df.drop(columns_to_drop, inplace=True, axis=1)
-    #
-    # # clean the date of publication & convert it to numeric data
-    # new_date = df['Date of Publication'].str.extract(r'^(\d{4})', expand=False)
-    # new_date = pd.to_numeric(new_date)
-    # new_date = new_date.fillna(0)
-    # df['Date of Publication'] = new_date
+
+    # pre processing
+    indicator_lst = get_all_indicator_id(INDICATOR_PAGES)
 
     app.run(debug=True)

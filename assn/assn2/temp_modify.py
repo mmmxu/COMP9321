@@ -84,7 +84,7 @@ class datalist(Resource):
     @api.response(201, 'Create')
     @api.response(200, 'OK')
     @api.doc(description="Import a collection from the data service")
-    @api.expect(indicator_id, validate=True)   
+    @api.expect(indicator_id, validate=True)
     def post(self):
     ###### make a requst with indicator given by client ######
         # indicator id, given by user
