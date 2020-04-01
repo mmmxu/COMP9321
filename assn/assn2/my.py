@@ -129,6 +129,9 @@ def write_in_sqlite(dataframe, database_file, table_name):
     cnx = sqlite3.connect(database_file)
     sql.to_sql(dataframe, name=table_name, con=cnx, if_exists='append')
 
+def delete_in_sqlite(database_file, table_name, id):
+    cnx = sqlite3.connect(database_file)
+    return sql.read_sql_query('delete from ' + table_name + ' where id=' + str(id), cnx)
 
 def read_from_sqlite(database_file, table_name):
     """
@@ -165,30 +168,30 @@ collection_model = api.model('collection', {
 @api.route('/collections')
 class CollectionsList(Resource):
 
-    # Q3
-    @api.response(200, 'Successful')
-    @api.doc(description="Get all books")
-    def get(self):
-        # args = get_query_parser.parse_args()
-        # retrieve the query parameters
-        order_by = args.get('order')
-        ascending = args.get('ascending', True)
-
-        if order_by:
-            df.sort_values(by=order_by, inplace=True, ascending=ascending)
-
-        json_str = df.to_json(orient='index')
-
-        # convert the string JSON to a real JSON
-        ds = json.loads(json_str)
-        ret = []
-
-        for idx in ds:
-            book = ds[idx]
-            book['Identifier'] = int(idx)
-            ret.append(book)
-
-        return ret
+    # # Q3
+    # @api.response(200, 'Successful')
+    # @api.doc(description="Get all books")
+    # def get(self):
+    #     # args = get_query_parser.parse_args()
+    #     # retrieve the query parameters
+    #     order_by = args.get('order')
+    #     ascending = args.get('ascending', True)
+    #
+    #     if order_by:
+    #         df.sort_values(by=order_by, inplace=True, ascending=ascending)
+    #
+    #     json_str = df.to_json(orient='index')
+    #
+    #     # convert the string JSON to a real JSON
+    #     ds = json.loads(json_str)
+    #     ret = []
+    #
+    #     for idx in ds:
+    #         book = ds[idx]
+    #         book['Identifier'] = int(idx)
+    #         ret.append(book)
+    #
+    #     return ret
 
     query_parser = api.parser()
     query_parser.add_argument('indicator_id', required=True, type=str)
@@ -226,70 +229,59 @@ class CollectionsList(Resource):
         }
 
 
-        # check if the given identifier does not exist
-        if id in df.index:
-            return {"message": "A book with Identifier={} is already in the dataset".format(id)}, 400
-
-        # Put the values into the dataframe
-        for key in book:
-            if key not in collection_model.keys():
-                # unexpected column
-                return {"message": "Property {} is invalid".format(key)}, 400
-            df.loc[id, key] = book[key]
-
-        # df.append(book, ignore_index=True)
-        return {"message": "Book {} is created".format(id)}, 201
-
-
-@api.route('/books/<int:id>')
-@api.param('id', 'The Book identifier')
-class Books(Resource):
-    @api.response(404, 'Book was not found')
-    @api.response(200, 'Successful')
-    @api.doc(description="Get a book by its ID")
-    def get(self, id):
-        if id not in df.index:
-            api.abort(404, "Book {} doesn't exist".format(id))
-
-        book = dict(df.loc[id])
-        return book
-
-    @api.response(404, 'Book was not found')
-    @api.response(200, 'Successful')
-    @api.doc(description="Delete a book by its ID")
+@api.param('collection_id', 'The collections identifier')
+@api.route('/collections/<id>')
+class data(Resource):
+    @api.response(200, 'OK')
+    @api.response(404, 'Collection does not exist')
+    @api.doc(description="Deleting a collection with the data service")
+    # Q2
     def delete(self, id):
-        if id not in df.index:
-            api.abort(404, "Book {} doesn't exist".format(id))
+        # TODO fix database locked
+        try:
+            delete_in_sqlite(database_file, table_name, id)
+        except:
+            api.abort(404, "collection: {} doesn't exist".format(id))
+        else:
+            return {
+                "message" :"Collection = {} is removed from the database!".format(id)
+                }, 200
 
-        df.drop(id, inplace=True)
-        return {"message": "Book {} is removed.".format(id)}, 200
+# Q5
+@api.route('/collections/<string:id>/<int:year>/<string:country>')
+class IndicatorYearCountry(Resource):
+    def get(self,id,year,country):
+        print("GET_ 1",id,year,country)
 
-    @api.response(404, 'Book was not found')
-    @api.response(400, 'Validation Error')
-    @api.response(200, 'Successful')
-    @api.expect(collection_model, validate=True)
-    @api.doc(description="Update a book by its ID")
-    def put(self, id):
+        # check if id is valid
+        indicatorCollection = db['indicatorCollection']
+        document = indicatorCollection.find_one({"id": id})
 
-        if id not in df.index:
-            api.abort(404, "Book {} doesn't exist".format(id))
+        if ( document == None):
 
-        # get the payload and convert it to a JSON
-        book = request.json
+            return {
+                "message" : "collection_id: "+ id +" does not exist",
+                }, 404
 
-        # Book ID cannot be changed
-        if 'Identifier' in book and id != book['Identifier']:
-            return {"message": "Identifier cannot be changed".format(id)}, 400
+        # check if year is valid
+        if (year < 2012 or year > 2017):
+            return {
+                "message" : "year need to br from 2012 to 2017",
+                }, 404
 
-        # Update the values
-        for key in book:
-            if key not in collection_model.keys():
-                # unexpected column
-                return {"message": "Property {} is invalid".format(key)}, 400
-            df.loc[id, key] = book[key]
+        for x in document['entries']:
+            if x['country'] == country:
+                return {
+                    "collection_id":    document['id'],
+                    "indicator" :       document['id'],
+                    "country" :         country,
+                    "year" :            year,
+                    "value":            x['value'],
+                }, 200
 
-        df.append(book, ignore_index=True)
-        return {"message": "Book {} has been successfully updated".format(id)}, 200
+        return {
+            "message" : "country: "+country+" is invalid",
+            }, 404
 
 
 if __name__ == '__main__':
