@@ -38,6 +38,9 @@ INDICATOR_PAGES = 2
 # database record id, starts from 1
 ENTRY_ID = 1
 
+indicator_lst = set()
+
+
 # Custom class define
 class APIError(Exception):
     """An API Error Exception"""
@@ -48,19 +51,21 @@ class APIError(Exception):
     def __str__(self):
         return "APIError: status={}".format(self.status)
 
+
 def fetch_data_by_id(indicator_id):
     """
     :param indicator_id: Ths id used to fetch from world bank api
     """
     req_url = ENDPOINT + str(indicator_id) + ENDPOINT_POSTFIX
     resp = requests.get(req_url)
-    if 'message' in resp[0]:
+    resp_json = resp.json()
+    if (not resp.ok) or 'message' in resp_json[0]:
         raise APIError(resp.status_code)
         return resp_json
-    else:
-        # got data from world bank
-        resp_json = resp.json()
+
+    # else return as normal
     return resp_json
+
 
 def get_all_indicator_id(INDICATOR_PAGES):
     """
@@ -69,20 +74,18 @@ def get_all_indicator_id(INDICATOR_PAGES):
     """
     i = 1
     indicator_lst = set()
-    while i<= INDICATOR_PAGES:
+    while i <= INDICATOR_PAGES:
         req_link = INDICATOR_ENDPOINT + str(i)
         req = requests.get(req_link)
         indicators = req.json()
         for j in indicators[1]:
             indicator_lst.add(j['id'])
-        i+=1
-    print("Total %d records of indicator id got."% len(indicator_lst))
+        i += 1
+    print("Total %d records of indicator id got." % len(indicator_lst))
     return indicator_lst
 
 
-
-
-def process_data_by_id(resp_json, indicator_id):
+def process_data_by_id(resp_json, indicator_id, curr_id):
     """
     :param resp_json:
     :param indicator_id: the id which searched
@@ -103,19 +106,18 @@ def process_data_by_id(resp_json, indicator_id):
                         "value": value
                         }
         entries.append(convert_data)
+    entries_str = str(entries)
     # format output
     time = datetime.datetime.now()
     date_str = time.strftime("%Y-%m-%d %H:%M:%S")
-    record = {'uri': '/collections/' + str(ENTRY_ID),
-            'id': ENTRY_ID,
-            'creation_time': date_str,
-            'indicator_id': indicator_id,
-            'entries': entries
-            }
-    ENTRY_ID += 1
+    record = {'uri': '/collections/' + str(curr_id),
+              'id': curr_id,
+              'creation_time': date_str,
+              'indicator_id': indicator_id,
+              'entries': entries_str
+              }
     return record
 
-    
 
 def write_in_sqlite(dataframe, database_file, table_name):
     """
@@ -125,7 +127,7 @@ def write_in_sqlite(dataframe, database_file, table_name):
     """
 
     cnx = sqlite3.connect(database_file)
-    sql.to_sql(dataframe, name=table_name, con=cnx)
+    sql.to_sql(dataframe, name=table_name, con=cnx, if_exists='append')
 
 
 def read_from_sqlite(database_file, table_name):
@@ -138,6 +140,18 @@ def read_from_sqlite(database_file, table_name):
     return sql.read_sql('select * from ' + table_name, cnx)
 
 
+def read_last_sqlite_index(database_file, table_name):
+    """
+    :param database_file: where the database is stored
+    :param table_name: the name of the table
+    :return: A int
+    """
+    cnx = sqlite3.connect(database_file)
+    ret_df = sql.read_sql('select COUNT(*) from ' + table_name, cnx)
+    curr_id = ret_df.values.max()
+    return curr_id
+
+
 # The following is the schema of Book
 collection_model = api.model('collection', {
     'uri': fields.String,
@@ -148,20 +162,14 @@ collection_model = api.model('collection', {
 
 
 
-parser = reqparse.RequestParser()
-parser.add_argument('indicator_id', choices=list(column for column in collection_model.keys()))
-parser.add_argument('ascending', type=inputs.boolean)
-
-
 @api.route('/collections')
 class CollectionsList(Resource):
 
+    # Q3
     @api.response(200, 'Successful')
     @api.doc(description="Get all books")
     def get(self):
-        # get books as JSON string
-        args = parser.parse_args()
-
+        # args = get_query_parser.parse_args()
         # retrieve the query parameters
         order_by = args.get('order')
         ascending = args.get('ascending', True)
@@ -184,34 +192,39 @@ class CollectionsList(Resource):
 
     query_parser = api.parser()
     query_parser.add_argument('indicator_id', required=True, type=str)
-    # query_parser.add_argument('page_size', required=False, type=int, default=10)
-
     @api.response(201, 'Book Created Successfully')
     @api.response(400, 'Validation Error')
     @api.doc(description="Add a new book")
     @api.expect(query_parser, validate=True)
+    # Q1
     def post(self, query_parser=query_parser):
         args = query_parser.parse_args()
         indicator_id = args['indicator_id']
         # Request to world bank
         resp_json = fetch_data_by_id(indicator_id)
-        # # TODO Valid check
-        # if "message" in resp_json[0]:
-        #     print("***** get error message when request with {} *****".format(indicator_id))
-        #     # TODO response 404
-        #     return resp_json, int(resp_json[0]["message"][0]["id"])
-        # else:
-        record = process_data_by_id(resp_json, indicator_id)
-        write_in_sqlite(record, database_file, table_name)
-        return record[:4]
+        # get latest id
+        try:
+            curr_id = read_last_sqlite_index(database_file, table_name)
+        except:
+            curr_id = 1
+        # process data
+        record = process_data_by_id(resp_json, indicator_id, curr_id)
+        # Change to dataframe and put all entries to TXT format for SQLite DB.
+        record_df = pandas.DataFrame(record, index=[ENTRY_ID])
+        # Check if it exists
+        try:
+            write_in_sqlite(record_df, database_file, table_name)
+        except:
+            # TODO redundant check
+            return {"message": "{} has already been posted".format(indicator_id),
+                    "location": "/posts/{}".format(indicator_id)}, 200
+        return {
+            'uri': record['uri'],
+            'id': int(record['id']),
+            'creation_time': record['creation_time'],
+            'indicator_id': record['indicator_id']
+        }
 
-
-
-
-        if 'Identifier' not in book:
-            return {"message": "Missing Identifier"}, 400
-
-        id = book['Identifier']
 
         # check if the given identifier does not exist
         if id in df.index:
@@ -284,6 +297,8 @@ if __name__ == '__main__':
     database_file = Z_ID + '.db'  # name of sqlite db file that will be created
 
     # pre processing
-    indicator_lst = get_all_indicator_id(INDICATOR_PAGES)
+    # indicator_lst = get_all_indicator_id(INDICATOR_PAGES)
+    # for debug use only
+    indicator_lst = {'fin33.14.a', 'NY.GDP.MKTP.CD'}
 
     app.run(debug=True)
