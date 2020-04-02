@@ -130,8 +130,30 @@ def write_in_sqlite(dataframe, database_file, table_name):
     sql.to_sql(dataframe, name=table_name, con=cnx, if_exists='append')
 
 def delete_in_sqlite(database_file, table_name, id):
+    # cnx = sqlite3.connect(database_file)
+    # sql_query = 'DELETE FROM ' + table_name + ' WHERE id=' + str(id)
+    # print(sql_query)
+    # sql.read_sql(sql_query, cnx)
+    # print("OK")
+
+    # method 2
+    conn = sqlite3.connect(database_file)
+    cur = conn.cursor()
+    sql_query = 'DELETE FROM ' + table_name + ' WHERE id=' + str(id)
+    cur.execute(sql_query)
+    conn.commit()
+    cur.close()
+    conn.close()
+
+def search_by_id_in_sqlite(database_file, table_name, id):
+    """
+    :param database_file: where the database is stored
+    :param table_name: the name of the table
+    :return: A Dataframe
+    """
     cnx = sqlite3.connect(database_file)
-    return sql.read_sql_query('delete from ' + table_name + ' where id=' + str(id), cnx)
+    sql_query = 'SELECT * FROM ' + table_name + ' WHERE id=' + str(id)
+    return sql.read_sql(sql_query, cnx)
 
 def read_from_sqlite(database_file, table_name):
     """
@@ -167,31 +189,6 @@ collection_model = api.model('collection', {
 
 @api.route('/collections')
 class CollectionsList(Resource):
-
-    # # Q3
-    # @api.response(200, 'Successful')
-    # @api.doc(description="Get all books")
-    # def get(self):
-    #     # args = get_query_parser.parse_args()
-    #     # retrieve the query parameters
-    #     order_by = args.get('order')
-    #     ascending = args.get('ascending', True)
-    #
-    #     if order_by:
-    #         df.sort_values(by=order_by, inplace=True, ascending=ascending)
-    #
-    #     json_str = df.to_json(orient='index')
-    #
-    #     # convert the string JSON to a real JSON
-    #     ds = json.loads(json_str)
-    #     ret = []
-    #
-    #     for idx in ds:
-    #         book = ds[idx]
-    #         book['Identifier'] = int(idx)
-    #         ret.append(book)
-    #
-    #     return ret
 
     query_parser = api.parser()
     query_parser.add_argument('indicator_id', required=True, type=str)
@@ -237,12 +234,13 @@ class data(Resource):
     @api.doc(description="Deleting a collection with the data service")
     # Q2
     def delete(self, id):
-        # TODO fix database locked
-        try:
-            delete_in_sqlite(database_file, table_name, id)
-        except:
+        # check if record exists
+        rst = search_by_id_in_sqlite(database_file, table_name, id)
+        if rst.empty is True:
             api.abort(404, "collection: {} doesn't exist".format(id))
         else:
+
+            delete_in_sqlite(database_file, table_name, id)
             return {
                 "message" :"Collection = {} is removed from the database!".format(id)
                 }, 200
