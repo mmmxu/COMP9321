@@ -155,6 +155,16 @@ def search_by_id_in_sqlite(database_file, table_name, id):
     sql_query = 'SELECT * FROM ' + table_name + ' WHERE id=' + str(id)
     return sql.read_sql(sql_query, cnx)
 
+def search_by_indicator_id_in_sqlite(database_file, table_name, indicator_id):
+    """
+    :param database_file: where the database is stored
+    :param table_name: the name of the table
+    :return: A Dataframe
+    """
+    cnx = sqlite3.connect(database_file)
+    sql_query = 'SELECT * FROM ' + table_name + ' WHERE indicator_id= "' + str(indicator_id) +'"'
+    return sql.read_sql(sql_query, cnx)
+
 def read_from_sqlite(database_file, table_name):
     """
     :param database_file: where the database is stored
@@ -212,18 +222,18 @@ class CollectionsList(Resource):
         # Change to dataframe and put all entries to TXT format for SQLite DB.
         record_df = pandas.DataFrame(record, index=[ENTRY_ID])
         # Check if it exists
-        try:
+        rst = search_by_indicator_id_in_sqlite(database_file, table_name, indicator_id)
+        if rst.empty is True:
             write_in_sqlite(record_df, database_file, table_name)
-        except:
-            # TODO redundant check
+            return {
+                'uri': record['uri'],
+                'id': int(record['id']),
+                'creation_time': record['creation_time'],
+                'indicator_id': record['indicator_id']
+            }
+        else:
             return {"message": "{} has already been posted".format(indicator_id),
                     "location": "/posts/{}".format(indicator_id)}, 200
-        return {
-            'uri': record['uri'],
-            'id': int(record['id']),
-            'creation_time': record['creation_time'],
-            'indicator_id': record['indicator_id']
-        }
 
 
 @api.param('collection_id', 'The collections identifier')
