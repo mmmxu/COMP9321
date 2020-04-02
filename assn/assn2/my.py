@@ -203,6 +203,7 @@ def read_collection_sqlite(database_file, table_name, id, year=None, country=Non
     """
     conn = sqlite3.connect(database_file)
 
+    # define sql query
     if not year and not country:
         sql_query = f'select country,date,value from {table_name}'
 
@@ -216,11 +217,18 @@ def read_collection_sqlite(database_file, table_name, id, year=None, country=Non
         sql_query = f'select country,date,value from {table_name} where country="{country}"'
 
     # debug
-    print(sql_query)
     rst = sql.read_sql(sql_query, conn)
 
     return rst
 
+def read_q6_sqlite(database_file, table_name, id, year):
+    conn = sqlite3.connect(database_file)
+
+    sql_query = f'select * from {table_name} where date={year} and id="{id}"'
+
+    rst = sql.read_sql(sql_query, conn)
+
+    return rst
 
 
 # The following is the schema of Book
@@ -281,6 +289,7 @@ class CollectionsList(Resource):
             return {"message": "{} has already been posted".format(indicator_id),
                     "location": "/posts/{}".format(indicator_id)}, 200
 
+    # Q3
     order_parser = api.parser()
     order_parser.add_argument('order_by', required=False, type=str)
     @api.response(201, 'Book Created Successfully')
@@ -306,35 +315,17 @@ class CollectionsList(Resource):
 
         df = read_from_sqlite(database_file, table_name)
         df.columns = df.columns.str.strip()
-        df_sorted = df.sort_values(by=element, ascending=ascending)
+        # sort data
+        df = df.sort_values(by=element, ascending=ascending)
 
-        return df_sorted.to_dict('r')
+
+        # output certain columns only
+        df["uri"] = "/collections/" + df["id"].astype(str)
+        df["indicator"] = df["indicator_id"]
+        df = df[["uri", "id", "creation_time", "indicator"]]
+        return df.to_dict('r')
 
 
-# @api.route('/collections?order_by=<order_by>', methods=['GET'])
-# class orderby(Resource):
-#     # Q3
-#     order_parser = api.parser()
-#     order_parser.add_argument('order_by', required=False, type=str)
-#     @api.response(201, 'Book Created Successfully')
-#     @api.response(400, 'Validation Error')
-#     @api.doc(description="Add a new book")
-#     @api.expect(order_parser, validate=True)
-#     def get(self, order_by):
-#         print("Got here")
-#         # order_by = flask.request.args.get("order_by")
-#         # args = order_parser.parse_args()
-#         # order_by = args['order_by']
-#         # resolve parameters
-#         order_by = order_by.strip("{} ").split(",")
-#         element = [ele.strip("+-") for ele in order_by]
-#         ascending = [not '-' in ele for ele in order_by]
-#
-#
-#         df = read_from_sqlite(database_file, table_name)
-#         df_sorted = df.sort_values(element, ascending=ascending)
-#
-#         return df_sorted.to_dict('r')
 
 
 @api.param('collection_id', 'The collections identifier')
@@ -366,7 +357,12 @@ class data(Resource):
         if table.empty is True:
             api.abort(404, "collection: {} doesn't exist".format(id))
         else:
-            return table.to_dict('r')
+            # format the certain columns only
+            df = table
+            df["indicator"] = df["indicator_id"]
+            df = df[["id", "indicator", "creation_time", "entries"]]
+
+            return df.to_dict('r')
 
     # Q5
     @api.response(200, 'OK')
@@ -383,7 +379,8 @@ class data(Resource):
         if df.empty is True:
             api.abort(404, "collection: {} doesn't exist".format(id))
         else:
-            # df = df[['id', 'indicator', 'country', 'date', 'value']]
+            df['year'] = df['date']
+            df = df[['id', 'indicator', 'country', 'year', 'value']]
             return df.to_dict('r')
 
 
@@ -393,8 +390,10 @@ class data(Resource):
     @api.doc(description="Deleting a collection with the data service")
     def advanced_get_by_year(self, id, year, q=None):
         # Read from SQL
-        df = read_collection_sqlite(database_file,table_name, id, year)
-
+        df = read_q6_sqlite(database_file,table_name, id, year)
+        # empty check
+        if df.empty is True:
+            api.abort(404, "collection: {} doesn't exist".format(id))
         # check if query exists
         if q:
             # negative flag, Ture when q is a negative number (q=-10)
@@ -402,19 +401,14 @@ class data(Resource):
             n = q.strip('+-')
             # sort the dataframe
             df = df.sort_values('value', ascending=nega_flag).head(int(n))
-        # empty check
-        if df.empty is True:
-            api.abort(404, "collection: {} doesn't exist".format(id))
-        else:
+
+            # format certain output only
+
+            df['indicator'] = df['indicator_id']
+            df['indicator_value'] = df['value']
+            df = df[['indicator', 'indicator_value', 'entries']]
             return df.to_dict('r')
 
-##################################
-# All route goes here
-# ## Q3
-# @api.route("/collections/<int:id>/<int:year>/<string:country>")
-# class Q5(Resource):
-#     def get(self, id, year, country):
-#         return data.advanced_get(self, id, year, country), 200
 
 ## Q5
 @api.route("/collections/<int:id>/<int:year>/<string:country>")
