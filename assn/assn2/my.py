@@ -1,3 +1,10 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+# @Author  : z5141401
+# @File    : z5141401.py
+# @Software: ${PRODUCT_NAME}
+
+
 import json
 
 import flask
@@ -55,7 +62,9 @@ class APIError(Exception):
 
 def fetch_data_by_id(indicator_id):
     """
-    :param indicator_id: Ths id used to fetch from world bank api
+    get data by number id
+    :param indicator_id:
+    :return:
     """
     req_url = ENDPOINT + str(indicator_id) + ENDPOINT_POSTFIX
     resp = requests.get(req_url)
@@ -70,8 +79,9 @@ def fetch_data_by_id(indicator_id):
 
 def get_all_indicator_id(INDICATOR_PAGES):
     """
+    get all records in the database
     :param INDICATOR_PAGES:
-    :return: all indicators got from world bank API
+    :return:
     """
     i = 1
     indicator_lst = set()
@@ -134,7 +144,15 @@ def write_in_sqlite(dataframe, database_file, table_name):
     cnx = sqlite3.connect(database_file)
     sql.to_sql(dataframe, name=table_name, con=cnx, if_exists='append')
 
+
 def delete_in_sqlite(database_file, table_name, id):
+    """
+    delete a record from sqlite
+    :param database_file:
+    :param table_name:
+    :param id:
+    :return:
+    """
     # cnx = sqlite3.connect(database_file)
     # sql_query = 'DELETE FROM ' + table_name + ' WHERE id=' + str(id)
     # print(sql_query)
@@ -150,6 +168,7 @@ def delete_in_sqlite(database_file, table_name, id):
     cur.close()
     conn.close()
 
+
 def search_by_id_in_sqlite(database_file, table_name, id):
     """
     :param database_file: where the database is stored
@@ -160,6 +179,7 @@ def search_by_id_in_sqlite(database_file, table_name, id):
     sql_query = 'SELECT * FROM ' + table_name + ' WHERE id=' + str(id)
     return sql.read_sql(sql_query, cnx)
 
+
 def search_by_indicator_id_in_sqlite(database_file, table_name, indicator_id):
     """
     :param database_file: where the database is stored
@@ -167,8 +187,9 @@ def search_by_indicator_id_in_sqlite(database_file, table_name, indicator_id):
     :return: A Dataframe
     """
     cnx = sqlite3.connect(database_file)
-    sql_query = 'SELECT * FROM ' + table_name + ' WHERE indicator_id= "' + str(indicator_id) +'"'
+    sql_query = 'SELECT * FROM ' + table_name + ' WHERE indicator_id= "' + str(indicator_id) + '"'
     return sql.read_sql(sql_query, cnx)
+
 
 def read_from_sqlite(database_file, table_name):
     """
@@ -190,6 +211,7 @@ def read_last_sqlite_index(database_file, table_name):
     ret_df = sql.read_sql('select COUNT(*) from ' + table_name, cnx)
     curr_id = ret_df.values.max()
     return curr_id
+
 
 def read_collection_sqlite(database_file, table_name, id, year=None, country=None):
     """
@@ -221,6 +243,7 @@ def read_collection_sqlite(database_file, table_name, id, year=None, country=Non
 
     return rst
 
+
 def read_q6_sqlite(database_file, table_name, id, year):
     conn = sqlite3.connect(database_file)
 
@@ -240,19 +263,19 @@ collection_model = api.model('collection', {
 })
 
 
-
 @api.route('/collections')
 class CollectionsList(Resource):
     query_parser = api.parser()
     order_parser = api.parser()
     query_parser.add_argument('indicator_id', required=False, type=str)
     order_parser.add_argument('order_by', required=False, type=str)
+
     @api.response(201, 'Book Created Successfully')
     @api.response(400, 'Validation Error')
-    @api.doc(description="Add a new book")
+    @api.doc(description="Add a new record")
     @api.expect(query_parser, validate=True)
     # Q1
-    def post(self, query_parser=query_parser ):
+    def post(self, query_parser=query_parser):
         args = query_parser.parse_args()
         indicator_id = args['indicator_id']
         # Request to world bank
@@ -268,7 +291,7 @@ class CollectionsList(Resource):
         record_df = pandas.DataFrame(record, index=[ENTRY_ID])
         # Check if it exists
         # the first record do not need to check
-        if curr_id ==1:
+        if curr_id == 1:
             write_in_sqlite(record_df, database_file, table_name)
             return {
                 'uri': record['uri'],
@@ -292,11 +315,12 @@ class CollectionsList(Resource):
     # Q3
     order_parser = api.parser()
     order_parser.add_argument('order_by', required=False, type=str)
+
     @api.response(201, 'Book Created Successfully')
     @api.response(400, 'Validation Error')
     @api.doc(description="Add a new book")
     @api.expect(order_parser, validate=True)
-    def get(self, order_parser = order_parser):
+    def get(self, order_parser=order_parser):
         print("Got here")
         # order_by = flask.request.args.get("order_by")
         args = order_parser.parse_args()
@@ -308,24 +332,19 @@ class CollectionsList(Resource):
         # remove the start space
         element = [ele.strip() for ele in element]
         # rename to sql table name
-        element = ['indicator_id' if ele=='indicator' else ele for ele in element]
+        element = ['indicator_id' if ele == 'indicator' else ele for ele in element]
         ascending = [not '-' in ele for ele in order_by]
-
-
 
         df = read_from_sqlite(database_file, table_name)
         df.columns = df.columns.str.strip()
         # sort data
         df = df.sort_values(by=element, ascending=ascending)
 
-
         # output certain columns only
         df["uri"] = "/collections/" + df["id"].astype(str)
         df["indicator"] = df["indicator_id"]
         df = df[["uri", "id", "creation_time", "indicator"]]
         return df.to_dict('r')
-
-
 
 
 @api.param('collection_id', 'The collections identifier')
@@ -344,9 +363,9 @@ class data(Resource):
 
             delete_in_sqlite(database_file, table_name, id)
             return {
-                "message" :"The collection = {} was removed from the database!".format(id),
-                "id" : id
-                }, 200
+                       "message": "The collection = {} was removed from the database!".format(id),
+                       "id": id
+                   }, 200
 
     # Q4
     @api.response(200, 'OK')
@@ -373,7 +392,7 @@ class data(Resource):
         df = read_collection_sqlite(database_file, table_name, id, year, country)
         # Add other necessary columns
         df['id'] = id
-        df['indicator'] = search_by_id_in_sqlite(database_file,table_name,id)['indicator_id']
+        df['indicator'] = search_by_id_in_sqlite(database_file, table_name, id)['indicator_id']
         print(df)
         # !!important! sort the column order
         if df.empty is True:
@@ -383,14 +402,13 @@ class data(Resource):
             df = df[['id', 'indicator', 'country', 'year', 'value']]
             return df.to_dict('r')
 
-
     # Q6
     @api.response(200, 'OK')
     @api.response(404, 'Collection does not exist')
     @api.doc(description="Deleting a collection with the data service")
     def advanced_get_by_year(self, id, year, q=None):
         # Read from SQL
-        df = read_q6_sqlite(database_file,table_name, id, year)
+        df = read_q6_sqlite(database_file, table_name, id, year)
         # empty check
         if df.empty is True:
             api.abort(404, "collection: {} doesn't exist".format(id))
@@ -416,6 +434,7 @@ class Q5(Resource):
     def get(self, id, year, country):
         return data.advanced_get(self, id, year, country), 200
 
+
 ## Q6
 @api.route("/collections/<int:id>/<int:year>")
 class Q6(Resource):
@@ -424,7 +443,7 @@ class Q6(Resource):
         # digit check
         if q[1:].isdigit():
             result = data.advanced_get_by_year(self, id, year, q)
-            return result,200
+            return result, 200
         else:
             api.abort(400, "Invalid query format, please input a digit.")
 
@@ -433,9 +452,9 @@ if __name__ == '__main__':
     table_name = 'collections'
     database_file = Z_ID + '.db'  # name of sqlite db file that will be created
 
-    # pre processing
+    # # pre processing
     # indicator_lst = get_all_indicator_id(INDICATOR_PAGES)
-    # for debug use only
-    indicator_lst = {'fin33.14.a', 'NY.GDP.MKTP.CD'}
+    # # for debug use only
+    # indicator_lst = {'fin33.14.a', 'NY.GDP.MKTP.CD'}
 
     app.run(debug=True)
