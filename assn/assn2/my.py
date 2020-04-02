@@ -1,5 +1,6 @@
 import json
 
+import flask
 import pandas as pd
 from flask import Flask
 from flask import request
@@ -228,14 +229,15 @@ collection_model = api.model('collection', {
 @api.route('/collections')
 class CollectionsList(Resource):
     query_parser = api.parser()
+    order_parser = api.parser()
     query_parser.add_argument('indicator_id', required=False, type=str)
-    query_parser.add_argument('order_by', required=False, type=str)
+    order_parser.add_argument('order_by', required=False, type=str)
     @api.response(201, 'Book Created Successfully')
     @api.response(400, 'Validation Error')
     @api.doc(description="Add a new book")
     @api.expect(query_parser, validate=True)
     # Q1
-    def post(self, query_parser=query_parser):
+    def post(self, query_parser=query_parser ):
         args = query_parser.parse_args()
         indicator_id = args['indicator_id']
         # Request to world bank
@@ -264,9 +266,12 @@ class CollectionsList(Resource):
                     "location": "/posts/{}".format(indicator_id)}, 200
     # Q3
     @api.response(200, 'OK')
-    @api.response(404, 'Collection does not exist')
-    @api.doc(description="Deleting a collection with the data service")
-    def get(self, order_by):
+    @api.doc(description="Retrieve the list of available collections")
+    def get(self, order_parser=order_parser):
+        print("Got here")
+        # order_by = flask.request.args.get("order_by")
+        args = order_parser.parse_args()
+        order_by = args['order_by']
         # resolve parameters
         order_by = order_by.strip("{} ").split(",")
         element = [ele.strip("+-") for ele in order_by]
@@ -301,7 +306,7 @@ class data(Resource):
     # Q4
     @api.response(200, 'OK')
     @api.response(404, 'Collection does not exist')
-    @api.doc(description="Deleting a collection with the data service")
+    @api.doc(description="Retrieve a collection")
     def get(self, id):
         table = search_by_id_in_sqlite(database_file, table_name, id)
         table['entries'] = read_collection_sqlite(database_file, table_name, id).to_dict('r')
