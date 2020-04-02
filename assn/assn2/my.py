@@ -264,14 +264,22 @@ class CollectionsList(Resource):
         else:
             return {"message": "{} has already been posted".format(indicator_id),
                     "location": "/posts/{}".format(indicator_id)}, 200
+
+
+@api.route('/collections?order_by=<order_by>')
+class orderby(Resource):
     # Q3
-    @api.response(200, 'OK')
-    @api.doc(description="Retrieve the list of available collections")
-    def get(self, order_parser=order_parser):
+    order_parser = api.parser()
+    order_parser.add_argument('order_by', required=False, type=str)
+    @api.response(201, 'Book Created Successfully')
+    @api.response(400, 'Validation Error')
+    @api.doc(description="Add a new book")
+    @api.expect(order_parser, validate=True)
+    def get(self, order_by):
         print("Got here")
         # order_by = flask.request.args.get("order_by")
-        args = order_parser.parse_args()
-        order_by = args['order_by']
+        # args = order_parser.parse_args()
+        # order_by = args['order_by']
         # resolve parameters
         order_by = order_by.strip("{} ").split(",")
         element = [ele.strip("+-") for ele in order_by]
@@ -282,7 +290,7 @@ class CollectionsList(Resource):
         df_sorted = df.sort_values(element, ascending=ascending)
 
         return df_sorted.to_dict('r')
-
+app.add_url_rule('/collections?order_by=<order_by>', view_func=orderby.get)
 
 @api.param('collection_id', 'The collections identifier')
 @api.route('/collections/<int:id>')
@@ -347,6 +355,8 @@ class data(Resource):
         # TODO output format
         return df.to_dict('r')
 
+##################################
+# All route goes here
 
 
 
