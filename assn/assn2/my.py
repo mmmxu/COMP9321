@@ -18,9 +18,9 @@ import sqlite3
 
 app = Flask(__name__)
 api = Api(app,
-          default="Books",  # Default namespace
-          title="Book Dataset",  # Documentation Title
-          description="This is just a simple example to show how publish data as a service.")  # Documentation Description
+          default="World bank collections",
+          title="Collections Dataset",
+          description="The API service for COMP9321.")  # Documentation Description
 
 # the schema of indicator_id
 indicator_id = api.model('indicator_id', {'indicator_id': fields.String})
@@ -111,8 +111,12 @@ def process_data_by_id(resp_json, indicator_id, curr_id):
     # format output
     time = datetime.datetime.now()
     date_str = time.strftime("%Y-%m-%d %H:%M:%S")
+
     record = {'uri': '/collections/' + str(curr_id),
               'id': curr_id,
+              'country': country,
+              'date': date,
+              'value': value,
               'creation_time': date_str,
               'indicator_id': indicator_id,
               'entries': entries_str
@@ -202,7 +206,7 @@ def read_collection_sqlite(database_file, table_name, id, year=None, country=Non
     if not year and not country:
         sql_query = f'select country,date,value from {table_name}'
 
-    elif year and country:  # year and country
+    elif year and country:  # if both year and country condition apply
         sql_query = f'select country,date,value from {table_name} where date={year} and country="{country}"'
 
     elif year:  # if only year
@@ -211,9 +215,12 @@ def read_collection_sqlite(database_file, table_name, id, year=None, country=Non
     elif country:  # if only country
         sql_query = f'select country,date,value from {table_name} where country="{country}"'
 
+    # debug
+    print(sql_query)
     rst = sql.read_sql(sql_query, conn)
 
     return rst
+
 
 
 # The following is the schema of Book
@@ -252,6 +259,15 @@ class CollectionsList(Resource):
         # Change to dataframe and put all entries to TXT format for SQLite DB.
         record_df = pandas.DataFrame(record, index=[ENTRY_ID])
         # Check if it exists
+        # the first record do not need to check
+        if curr_id ==1:
+            write_in_sqlite(record_df, database_file, table_name)
+            return {
+                'uri': record['uri'],
+                'id': int(record['id']),
+                'creation_time': record['creation_time'],
+                'indicator_id': record['indicator_id']
+            }
         rst = search_by_indicator_id_in_sqlite(database_file, table_name, indicator_id)
         if rst.empty is True:
             write_in_sqlite(record_df, database_file, table_name)
@@ -265,32 +281,61 @@ class CollectionsList(Resource):
             return {"message": "{} has already been posted".format(indicator_id),
                     "location": "/posts/{}".format(indicator_id)}, 200
 
-
-@api.route('/collections?order_by=<order_by>')
-class orderby(Resource):
-    # Q3
     order_parser = api.parser()
     order_parser.add_argument('order_by', required=False, type=str)
     @api.response(201, 'Book Created Successfully')
     @api.response(400, 'Validation Error')
     @api.doc(description="Add a new book")
     @api.expect(order_parser, validate=True)
-    def get(self, order_by):
+    def get(self, order_parser = order_parser):
         print("Got here")
         # order_by = flask.request.args.get("order_by")
-        # args = order_parser.parse_args()
-        # order_by = args['order_by']
+        args = order_parser.parse_args()
+        order_by = args['order_by']
         # resolve parameters
         order_by = order_by.strip("{} ").split(",")
-        element = [ele.strip("+-") for ele in order_by]
+        element = [ele.strip("+") for ele in order_by]
+        element = [ele.strip("-") for ele in order_by]
+        # remove the start space
+        element = [ele.strip() for ele in element]
+        # rename to sql table name
+        element = ['indicator_id' if ele=='indicator' else ele for ele in element]
         ascending = [not '-' in ele for ele in order_by]
 
 
+
         df = read_from_sqlite(database_file, table_name)
-        df_sorted = df.sort_values(element, ascending=ascending)
+        df.columns = df.columns.str.strip()
+        df_sorted = df.sort_values(by=element, ascending=ascending)
 
         return df_sorted.to_dict('r')
-app.add_url_rule('/collections?order_by=<order_by>', view_func=orderby.get)
+
+
+# @api.route('/collections?order_by=<order_by>', methods=['GET'])
+# class orderby(Resource):
+#     # Q3
+#     order_parser = api.parser()
+#     order_parser.add_argument('order_by', required=False, type=str)
+#     @api.response(201, 'Book Created Successfully')
+#     @api.response(400, 'Validation Error')
+#     @api.doc(description="Add a new book")
+#     @api.expect(order_parser, validate=True)
+#     def get(self, order_by):
+#         print("Got here")
+#         # order_by = flask.request.args.get("order_by")
+#         # args = order_parser.parse_args()
+#         # order_by = args['order_by']
+#         # resolve parameters
+#         order_by = order_by.strip("{} ").split(",")
+#         element = [ele.strip("+-") for ele in order_by]
+#         ascending = [not '-' in ele for ele in order_by]
+#
+#
+#         df = read_from_sqlite(database_file, table_name)
+#         df_sorted = df.sort_values(element, ascending=ascending)
+#
+#         return df_sorted.to_dict('r')
+
 
 @api.param('collection_id', 'The collections identifier')
 @api.route('/collections/<int:id>')
@@ -308,7 +353,8 @@ class data(Resource):
 
             delete_in_sqlite(database_file, table_name, id)
             return {
-                "message" :"Collection = {} is removed from the database!".format(id)
+                "message" :"The collection = {} was removed from the database!".format(id),
+                "id" : id
                 }, 200
 
     # Q4
@@ -317,9 +363,10 @@ class data(Resource):
     @api.doc(description="Retrieve a collection")
     def get(self, id):
         table = search_by_id_in_sqlite(database_file, table_name, id)
-        table['entries'] = read_collection_sqlite(database_file, table_name, id).to_dict('r')
-
-        return table
+        if table.empty is True:
+            api.abort(404, "collection: {} doesn't exist".format(id))
+        else:
+            return table.to_dict('r')
 
     # Q5
     @api.response(200, 'OK')
@@ -331,10 +378,13 @@ class data(Resource):
         # Add other necessary columns
         df['id'] = id
         df['indicator'] = search_by_id_in_sqlite(database_file,table_name,id)['indicator_id']
+        print(df)
         # !!important! sort the column order
-        df = df[['id', 'indicator', 'country', 'date', 'value']]
-
-        return df.to_dict('r')
+        if df.empty is True:
+            api.abort(404, "collection: {} doesn't exist".format(id))
+        else:
+            # df = df[['id', 'indicator', 'country', 'date', 'value']]
+            return df.to_dict('r')
 
 
     # Q6
@@ -352,12 +402,37 @@ class data(Resource):
             n = q.strip('+-')
             # sort the dataframe
             df = df.sort_values('value', ascending=nega_flag).head(int(n))
-        # TODO output format
-        return df.to_dict('r')
+        # empty check
+        if df.empty is True:
+            api.abort(404, "collection: {} doesn't exist".format(id))
+        else:
+            return df.to_dict('r')
 
 ##################################
 # All route goes here
+# ## Q3
+# @api.route("/collections/<int:id>/<int:year>/<string:country>")
+# class Q5(Resource):
+#     def get(self, id, year, country):
+#         return data.advanced_get(self, id, year, country), 200
 
+## Q5
+@api.route("/collections/<int:id>/<int:year>/<string:country>")
+class Q5(Resource):
+    def get(self, id, year, country):
+        return data.advanced_get(self, id, year, country), 200
+
+## Q6
+@api.route("/collections/<int:id>/<int:year>")
+class Q6(Resource):
+    def get(self, id, year):
+        q = flask.request.args.get('q')
+        # digit check
+        if q[1:].isdigit():
+            result = data.advanced_get_by_year(self, id, year, q)
+            return result,200
+        else:
+            api.abort(400, "Invalid query format, please input a digit.")
 
 
 if __name__ == '__main__':
