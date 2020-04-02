@@ -186,6 +186,34 @@ def read_last_sqlite_index(database_file, table_name):
     curr_id = ret_df.values.max()
     return curr_id
 
+def read_collection_sqlite(database_file, table_name, id, year=None, country=None):
+    """
+    Get year and other relevent data from SQLite database
+    :param database_file: the database file
+    :param table_name:
+    :param id:
+    :param year:
+    :param country:
+    :return: dataframe
+    """
+    conn = sqlite3.connect(database_file)
+
+    if not year and not country:
+        sql_query = f'select country,date,value from {table_name}'
+
+    elif year and country:  # year and country
+        sql_query = f'select country,date,value from {table_name} where date={year} and country="{country}"'
+
+    elif year:  # if only year
+        sql_query = f'select country,date,value from {table_name} where date={year}'
+
+    elif country:  # if only country
+        sql_query = f'select country,date,value from {table_name} where country="{country}"'
+
+    rst = sql.read_sql(sql_query, conn)
+
+    return rst
+
 
 # The following is the schema of Book
 collection_model = api.model('collection', {
@@ -199,9 +227,9 @@ collection_model = api.model('collection', {
 
 @api.route('/collections')
 class CollectionsList(Resource):
-
     query_parser = api.parser()
-    query_parser.add_argument('indicator_id', required=True, type=str)
+    query_parser.add_argument('indicator_id', required=False, type=str)
+    query_parser.add_argument('order_by', required=False, type=str)
     @api.response(201, 'Book Created Successfully')
     @api.response(400, 'Validation Error')
     @api.doc(description="Add a new book")
@@ -234,10 +262,25 @@ class CollectionsList(Resource):
         else:
             return {"message": "{} has already been posted".format(indicator_id),
                     "location": "/posts/{}".format(indicator_id)}, 200
+    # Q3
+    @api.response(200, 'OK')
+    @api.response(404, 'Collection does not exist')
+    @api.doc(description="Deleting a collection with the data service")
+    def get(self, order_by):
+        # resolve parameters
+        order_by = order_by.strip("{} ").split(",")
+        element = [ele.strip("+-") for ele in order_by]
+        ascending = [not '-' in ele for ele in order_by]
+
+
+        df = read_from_sqlite(database_file, table_name)
+        df_sorted = df.sort_values(element, ascending=ascending)
+
+        return df_sorted.to_dict('r')
 
 
 @api.param('collection_id', 'The collections identifier')
-@api.route('/collections/<id>')
+@api.route('/collections/<int:id>')
 class data(Resource):
     @api.response(200, 'OK')
     @api.response(404, 'Collection does not exist')
@@ -255,41 +298,51 @@ class data(Resource):
                 "message" :"Collection = {} is removed from the database!".format(id)
                 }, 200
 
-# Q5
-@api.route('/collections/<string:id>/<int:year>/<string:country>')
-class IndicatorYearCountry(Resource):
-    def get(self,id,year,country):
-        print("GET_ 1",id,year,country)
+    # Q4
+    @api.response(200, 'OK')
+    @api.response(404, 'Collection does not exist')
+    @api.doc(description="Deleting a collection with the data service")
+    def get(self, id):
+        table = search_by_id_in_sqlite(database_file, table_name, id)
+        table['entries'] = read_collection_sqlite(database_file, table_name, id).to_dict('r')
 
-        # check if id is valid
-        indicatorCollection = db['indicatorCollection']
-        document = indicatorCollection.find_one({"id": id})
+        return table
 
-        if ( document == None):
+    # Q5
+    @api.response(200, 'OK')
+    @api.response(404, 'Collection does not exist')
+    @api.doc(description="Deleting a collection with the data service")
+    def advanced_get(self, id, year, country):
+        # Read from SQL
+        df = read_collection_sqlite(database_file, table_name, id, year, country)
+        # Add other necessary columns
+        df['id'] = id
+        df['indicator'] = search_by_id_in_sqlite(database_file,table_name,id)['indicator_id']
+        # !!important! sort the column order
+        df = df[['id', 'indicator', 'country', 'date', 'value']]
 
-            return {
-                "message" : "collection_id: "+ id +" does not exist",
-                }, 404
+        return df.to_dict('r')
 
-        # check if year is valid
-        if (year < 2012 or year > 2017):
-            return {
-                "message" : "year need to br from 2012 to 2017",
-                }, 404
 
-        for x in document['entries']:
-            if x['country'] == country:
-                return {
-                    "collection_id":    document['id'],
-                    "indicator" :       document['id'],
-                    "country" :         country,
-                    "year" :            year,
-                    "value":            x['value'],
-                }, 200
+    # Q6
+    @api.response(200, 'OK')
+    @api.response(404, 'Collection does not exist')
+    @api.doc(description="Deleting a collection with the data service")
+    def advanced_get_by_year(self, id, year, q=None):
+        # Read from SQL
+        df = read_collection_sqlite(database_file,table_name, id, year)
 
-        return {
-            "message" : "country: "+country+" is invalid",
-            }, 404
+        # check if query exists
+        if q:
+            # negative flag, Ture when q is a negative number (q=-10)
+            nega_flag = q[0] is '-'
+            n = q.strip('+-')
+            # sort the dataframe
+            df = df.sort_values('value', ascending=nega_flag).head(int(n))
+        # TODO output format
+        return df.to_dict('r')
+
+
 
 
 if __name__ == '__main__':
