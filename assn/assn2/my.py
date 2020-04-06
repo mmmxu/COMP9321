@@ -70,8 +70,7 @@ def fetch_data_by_id(indicator_id):
     resp = requests.get(req_url)
     resp_json = resp.json()
     if (not resp.ok) or 'message' in resp_json[0]:
-        raise APIError(resp.status_code)
-        return resp_json
+        return api.abort(404, "Can not found {} from world bank".format(indicator_id))
 
     # else return as normal
     return resp_json
@@ -307,7 +306,7 @@ class CollectionsList(Resource):
                 'id': int(record['id']),
                 'creation_time': record['creation_time'],
                 'indicator_id': record['indicator_id']
-            }
+            }, 201
         else:
             return {"message": "{} has already been posted".format(indicator_id),
                     "location": "/posts/{}".format(indicator_id)}, 200
