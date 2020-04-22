@@ -12,22 +12,13 @@ dev env colab
 ## Load csv file from Gdrive
 """
 
-# Commented out IPython magic to ensure Python compatibility.
-# Mount google drive to read images from colab
-from google.colab import drive
-drive.mount('/content/drive')
-# %cd /content/drive/My Drive/DevEnv/9321
-
-# %cd /content/drive/My Drive/DevEnv/9321
-# !wget https://github.com/mysilver/COMP9321-Data-Services/raw/master/20t1/assign3/training.csv
-# !wget https://github.com/mysilver/COMP9321-Data-Services/raw/master/20t1/assign3/validation.csv
-
 """# Start"""
 
 import pandas as pd
 import numpy as np
 import requests
 import json
+import sys
 
 from sklearn.preprocessing import LabelEncoder
 from sklearn.preprocessing import MinMaxScaler
@@ -49,8 +40,22 @@ import matplotlib.pyplot as plt
 # ref: https://stackoverflow.com/questions/20625582/how-to-deal-with-settingwithcopywarning-in-pandas
 pd.options.mode.chained_assignment = None  # default='warn'
 
-train_df=pd.read_csv('./training.csv')
-validation_df=pd.read_csv('./validation.csv')
+
+# get data from args
+if len(sys.argv)!=3:
+    sys.exit("Input args not valid, please pass path1 path2 to this file.")
+
+
+TRAIN_PATH = sys.argv[1]
+VALID_PATH = sys.argv[2]
+Z_ID = 'z5141401'
+DECIMAL_LEN = 6
+
+try:
+    train_df=pd.read_csv(TRAIN_PATH)
+    validation_df=pd.read_csv(VALID_PATH)
+except:
+    sys.exit("Invalid path or not a csv file, please check your input.")
 
 train_df
 
@@ -215,37 +220,20 @@ def gbrt(X_train, Y_train):
 
 """# Evaluate"""
 
-model_dt = dTree(X_train, Y_train)
-model_rf = randomForest(X_train, Y_train)
-model_ab = adaBoost(X_train, Y_train)
 model_gbrt = gbrt(X_train, Y_train)
 
-model = model_dt
+model = model_gbrt
 
-for i in range(3):
-    if i ==0:
-        model = model_gbrt
-    if i == 1:
-        model = model_rf
-    if i ==2:
-        model = model_ab
-
-    print("Result for %s is:"%(model))
-    # For train set
-    Y_train_pred = model.predict(X_train)
-    print("Train set result:")
-    print('Mean squared Error: ',mean_squared_error(Y_train,Y_train_pred))
-    print("Correlation score:%f"%(model.score(X_train,Y_train)))
-
-
-
-    # For validation set
-    print("Validation set result:")
-    Y_valid_pred = model.predict(X_valid)
-    print('Mean squared Error: ',mean_squared_error(Y_valid,Y_valid_pred)) 
-    print("Correlation score:%f"%(model.score(X_valid,Y_valid)))
-
-    print("\n")
+# For validation set
+# print summary
+lst = [Z_ID]
+summary_1_filename = Z_ID + '.PART1.summary.csv'
+Y_valid_pred = model.predict(X_valid)
+lst.append(round(mean_squared_error(Y_valid,Y_valid_pred), DECIMAL_LEN)) 
+lst.append(round(model.score(X_valid,Y_valid), DECIMAL_LEN))
+    
+summary_1 = pd.DataFrame([lst], columns =['zid','MSR','correlation']) 
+summary_1.to_csv(summary_1_filename, index=False)
 
 
 
